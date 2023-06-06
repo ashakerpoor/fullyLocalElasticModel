@@ -1,14 +1,20 @@
 /*
- * Calculates the local shear moduli in Mizuno and Mossa 2013 paper for smaller boxes.
- * Calculates one specified shear/bulk modulus matrix component at a time: C_ijkl
- * The code uses the lines and planes approach and the linked-list algorithm.
+ * Calculates the distribution of local elastic moduli following the method
+ * in Mizuno, et al. 2013 Physical Review publication (DOI: 10.1103/PhysRevE.87.042306).
+ * Most of the parameters defined in this program are in analogy to the definitions
+ * in the original paper.
+ * The program calculates one specified shear/bulk modulus matrix component at a time: C_ijkl.
+ * The program takes in, as command line arguments, a combination of Cartesian coordinates,
+ * denoted here by i,j,k, and l.
+ * As a reference, the result of this research and the related simulations are published,
+ * in a 2020 Soft Matter paper (DOI: 10.1039/c9sm02022e).
 */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <stdbool.h>
-#include "dcd.h"
+#include "dcd.h"	// header file to permit reading binary ".dcd" trajectory data files.
 #define LL 500
 
 /*
@@ -16,13 +22,11 @@
  * ngrid-1 =  number of points inside big cube *** ngrid = number of boxes.
 */
 
-#define nbox 3
-#define ngrid 7
-#define ngrid3 ngrid*ngrid*ngrid
+#define nbox 3	// number of small cubic domains that subdivide the simulation box to create local domains.
+#define ngrid 7	// the grid size (i.e. M in Mizuno's notation) chosen arbitrarily to create overlapping boxes.
+#define ngrid3 ngrid*ngrid*ngrid	// M^3 size of the grid in 3 dimensions.
 
-/*
- * Cell characteristics of the linked-list algorithm.
-*/
+// The following block defines the parameters of the linked-list algorithm.
 
 #define ncellx 6
 #define ncelly 6
@@ -38,7 +42,7 @@ int icell(IX, IY, IZ){
 }
 
 
-int main(int argc, char *argv[])
+int main(int argc, char *argv[])	// 4 command line args read in corresponding to i,j,k, and l (all being Cartesian coords).
 {
 	float *x,*y,*z,lx,ly,lz,lx2,ly2,lz2,timestep,dx,dy,dz,fbin;
 	int N,i,j,k,l,wcell,flag,nset,tbsave,t,tmax,whichfile;
@@ -79,26 +83,26 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	nfiles = atoi(argv[1]);
-	p = atoi(argv[2]);
-        q = atoi(argv[3]);
-        r = atoi(argv[4]);
-        s = atoi(argv[5]);
+	nfiles = atoi(argv[1]);	// number of dcd files that being inputted. In this program I always used 1.
+	p = atoi(argv[2]);	// the first Cartesian coordinate corresponding to index i in C_ijkl.
+        q = atoi(argv[3]);	// index j in C_ijkl.
+        r = atoi(argv[4]);	// index k in C_ijkl.
+        s = atoi(argv[5]);	// index l in C_ijkl.
 
         printf("i j k l = %i %i %i %i\n",p,q,r,s);
 
 	for(i=0;i<nfiles;i++){
-		sprintf(filename[i],"traj%i.dcd",i+1);
+		sprintf(filename[i],"traj%i.dcd",i+1);	// defining the data file's name to keep consistent with the format defined in "dcd.h".
 	}
 
 	fprintf(stderr,"%s\n",filename[0]);
-	dcd_info(filename[0],&N,&nset,&tbsave,&timestep,&wcell);
-
+	dcd_info(filename[0],&N,&nset,&tbsave,&timestep,&wcell); // dcd_info() a function imported from "dcd.h" to get the
+								// N (# particles), nset (# time steps), and timestep.
 	fileconfigs = nset;
 	nset = nset*nfiles;
 	tmax = nset;
 
-	lx = getboxlength(filename[0],wcell,0);
+	lx = getboxlength(filename[0],wcell,0);	// getboxlength(), a function imported from "dcd.h" to read the simulation box size.
 	ly = lx;
 	lz = lx;
 	lx2 = lx/2;
@@ -117,13 +121,13 @@ int main(int argc, char *argv[])
 	m = 0;
 	flag = 0;
 
-	cut = 2.5;
+	cut = 2.5;	// pair potential cutoff.
 	cut2 = cut*cut;
-	T = 1e-3;
-	rho = 1.015;
+	T = 1e-3;	// temperature.
+	rho = 1.015;	// number density in the simulation box.
 
-	w = lx/nbox;
-	iw = 1.0/w;
+	w = lx/nbox;	// local domain size.
+	iw = 1.0/w;	// inverse of local domain size.
 	w3 = w*w*w;
 	vol = lx*ly*lz;
 
@@ -134,7 +138,7 @@ int main(int argc, char *argv[])
 	deltaIL = 0;
 	deltaJK = 0;
 
-	if(p==q) deltaIJ = 1;
+	if(p==q) deltaIJ = 1;	// deltaIJ is Kronecker delta of indeces I & J.
 	if(r==s) deltaKL = 1;
 	if(p==r) deltaIK = 1;
 	if(q==s) deltaJL = 1;
@@ -148,8 +152,14 @@ int main(int argc, char *argv[])
 
 
 /***********************************************************************************/
-        /** LINKED LIST CELLS **/
-
+        /*** LINKED LIST CELLS ***/
+	/*
+	* Implementation of the "Linked List" algorithm,
+	* which creates neighbor lists to keep track of neighboring 
+	* particles. This effectively reduces the cost of calculations
+	* involving binary separations/interactions.
+	*/
+	
         ilencelx = ((float) ncellx)/lx;
         ilencely = ((float) ncelly)/ly;
         ilencelz = ((float) ncellz)/lz;
