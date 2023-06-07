@@ -42,7 +42,7 @@ int icell(IX, IY, IZ){
 }
 
 
-int main(int argc, char *argv[])	// 4 command line args read in corresponding to i,j,k, and l (all being Cartesian coords).
+int main(int argc, char *argv[])	// 4 command line args that are read in, correspond to i,j,k, and l (all being Cartesian coords).
 {
 	float *x,*y,*z,lx,ly,lz,lx2,ly2,lz2,timestep,dx,dy,dz,fbin;
 	int N,i,j,k,l,wcell,flag,nset,tbsave,t,tmax,whichfile;
